@@ -502,16 +502,76 @@ def _extract_json_object(text: str) -> dict:
     return json.loads(text[start : end + 1])
 
 
+def _extraction_tool_schema() -> dict:
+    """JSON schema for the record_extraction tool: every catalog field.
+
+    Mirrors the service's _output_schema(): document_type + evidence +
+    every extraction field id across types, all optional except the type.
+    """
+    properties: dict = {
+        "document_type": {"type": "string", "description": "the identified catalog type id"},
+        "evidence": {"type": "string", "description": "one sentence citing what identifies the type"},
+    }
+    for field_id in all_extraction_fields():
+        properties[field_id] = {
+            "type": ["string", "null"],
+            "description": "exact value as printed in the image, or null",
+        }
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": ["document_type"],
+    }
+
+
+def _extract_tool_payload(payload: dict, protocol: str) -> dict:
+    """Pull the tool-call arguments out of a (protocol-shaped) response."""
+    if protocol == "anthropic":
+        for block in payload.get("content", []):
+            if block.get("type") == "tool_use":
+                return block.get("input") or {}
+        text = "".join(block.get("text", "") for block in payload.get("content", []))
+    else:
+        message = payload["choices"][0]["message"]
+        calls = message.get("tool_calls") or []
+        if calls:
+            return json.loads(calls[0]["function"]["arguments"])
+        text = message.get("content") or ""
+    if text.strip():
+        return _extract_json_object(text)
+    raise ValueError("model returned neither a tool call nor JSON text")
+
+
 def call_vision_model(prompt: str, images: list[bytes], model: str) -> dict:
-    """One vision-model call; returns the parsed JSON object payload."""
+    """One vision-model call; returns the parsed field payload.
+
+    Structure is API-ENFORCED with a forced tool call
+    (record_extraction): gateways that front anthropic through litellm
+    do not honor response_format=json_object (the model answers in
+    markdown and a text parse dies), while tool calls come back as
+    machine-readable arguments on every route. A text-JSON fallback
+    covers gateways without tool support.
+    """
     connection = _model_connection()
     content = _vision_content(prompt, images, connection["protocol"])
+    tool_name = "record_extraction"
+    tool_schema = _extraction_tool_schema()
     if connection["protocol"] == "anthropic":
         body = {
             "model": model,
             "max_tokens": 2048,
-            "temperature": 0,
+            # temperature is deliberately NOT sent — gateways that front
+            # anthropic through litellm accept only the model default;
+            # sending 0.0 is a hard 502 there.
             "system": EXTRACT_SYSTEM,
+            "tools": [
+                {
+                    "name": tool_name,
+                    "description": "Record the fields read from the document images",
+                    "input_schema": tool_schema,
+                }
+            ],
+            "tool_choice": {"type": "tool", "name": tool_name},
             "messages": [{"role": "user", "content": content}],
         }
         headers = {
@@ -522,8 +582,18 @@ def call_vision_model(prompt: str, images: list[bytes], model: str) -> dict:
     else:
         body = {
             "model": model,
-            "temperature": 0,
-            "response_format": {"type": "json_object"},
+            "max_tokens": 2048,
+            "tools": [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": tool_name,
+                        "description": "Record the fields read from the document images",
+                        "parameters": tool_schema,
+                    },
+                }
+            ],
+            "tool_choice": {"type": "function", "function": {"name": tool_name}},
             "messages": [
                 {"role": "system", "content": EXTRACT_SYSTEM},
                 {"role": "user", "content": content},
@@ -545,13 +615,7 @@ def call_vision_model(prompt: str, images: list[bytes], model: str) -> dict:
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode(errors="replace")[:300]
         raise RuntimeError(f"Vision model call failed: HTTP {exc.code}: {detail}") from exc
-    if connection["protocol"] == "anthropic":
-        text = "".join(
-            block.get("text", "") for block in payload.get("content", [])
-        )
-    else:
-        text = payload["choices"][0]["message"]["content"]
-    return _extract_json_object(text)
+    return _extract_tool_payload(payload, connection["protocol"])
 
 
 # --------------------------------------------------------------------------- #
