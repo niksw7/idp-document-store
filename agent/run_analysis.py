@@ -38,8 +38,8 @@ REQUEST_TIMEOUT_SECONDS = 60
 #: sha256 of the exact bytes raw.githubusercontent.com serves — refreshed
 #: by agentworks/scripts/build_claw_spec.py at release time
 PINNED_FILES: dict[str, str] = {
-    "idp_analyze.py": "SHA256_IDP_ANALYZE",
-    "document_rules.yaml": "SHA256_RULES",
+    "idp_analyze.py": "90ff0b9c52fc5482faa5f0d3ae7371fe02f7439861ce6038c13ce8cb87118b0b",
+    "document_rules.yaml": "633d4842d50d2e4bc3661ed7d8b9b5811be447b6404e834de842cee1f2ccfdf8",
 }
 
 #: runtime dependencies (installed only from the policy-allowed indexes)
