@@ -1,0 +1,168 @@
+# =============================================================================
+# IDP (Intelligent Document Processor) — document rules
+# =============================================================================
+# This file IS the model's knowledge about each document type. The IDP loads
+# it at runtime and injects it into the extract prompt, so you control the
+# agent's behaviour per document type by EDITING THIS FILE — no code changes,
+# no redeploy. `idp-agent rules` prints what the agent currently understands.
+#
+# Override the location with IDP_RULES_FILE (e.g. an ops-managed copy outside
+# the repo). Edits are picked up on the next analysis (no service restart).
+#
+# Schema per entry (key = the canonical document type id, e.g. PAN):
+#   display_name  — human label
+#   identification — how to RECOGNISE this document type (goes to the model)
+#   extract       — the named extraction condition (e.g. pancard_extract).
+#                   The model identifies the type from the document itself,
+#                   then applies exactly this condition's fields.
+#   fields        — what data this condition extracts: one entry per field
+#                     id (free-form) with:
+#                     label      — how the field is described to the model
+#                     compare_to — optional: the application-profile field
+#                                  (name, pan, dob, mobile, email) this value
+#                                  is verified against. Fields without
+#                                  compare_to are extracted as evidence only.
+#   rules         — scrutiny rules the model applies for this type
+# =============================================================================
+
+document_types:
+
+  PAN:
+    display_name: "PAN card"
+    identification: |
+      Permanent Account Number card issued by the Indian Income Tax
+      Department. Recognisable by the "INCOME TAX DEPARTMENT" /
+      "Permanent Account Number Card" heading, the 10-character PAN printed
+      prominently (5 letters, 4 digits, 1 letter - e.g. ABCRS1234K), the
+      holder's name, father's name, date of birth and a photograph.
+    extract: pancard_extract
+    fields:
+      name:
+        label: "Name of the card holder, exactly as printed"
+        compare_to: name
+      pan:
+        label: "The 10-character PAN (5 letters, 4 digits, 1 letter)"
+        compare_to: pan
+      dob:
+        label: "Date of birth as printed (e.g. 14/03/1990)"
+        compare_to: dob
+    rules:
+      - "The PAN must be exactly 10 characters: 5 letters, then 4 digits, then 1 letter."
+      - "The name on the card must match the applicant's name on the application profile."
+      - "The date of birth on the card must match the application profile."
+
+  AADHAAR:
+    display_name: "Aadhaar card"
+    identification: |
+      Aadhaar card issued by UIDAI. Recognisable by the "आधार / Aadhaar"
+      heading, the UIDAI logo, the 12-digit Aadhaar number (e.g.
+      1234 5678 9012), the holder's name, date of birth, gender and
+      address. Labels may be bilingual (English + Hindi / Devanagari).
+    extract: aadhaar_extract
+    fields:
+      name:
+        label: "Name of the card holder, exactly as printed"
+        compare_to: name
+      dob:
+        label: "Date of birth as printed (e.g. 14/03/1990)"
+        compare_to: dob
+    rules:
+      - "The Aadhaar number is 12 digits; a partially masked number (e.g. XXXX XXXX 1234) is acceptable proof of possession."
+      - "The name on the card must match the applicant's name on the application profile."
+      - "The date of birth must match the application profile."
+      - "Aadhaar proves identity and address, NOT income or bank details."
+
+  ELECTRICITY_BILL:
+    display_name: "Electricity bill"
+    identification: |
+      An electricity supply bill (e.g. from a state distribution company).
+      Recognisable by the utility company letterhead, a consumer /
+      account number, billing unit, meter number, billing period, units
+      consumed (kWh), amount due and the billed consumer's name and
+      service address.
+    extract: electricity_extract
+    fields:
+      consumer_name:
+        label: "Name of the billed consumer, exactly as printed"
+        compare_to: name
+      service_address:
+        label: "The service address the bill is raised for"
+      consumer_number:
+        label: "Consumer / account number"
+      bill_date:
+        label: "Bill date as printed (e.g. 02/11/2026)"
+      amount_due:
+        label: "Total amount due (as printed, with currency)"
+    rules:
+      - "The consumer name must match the applicant's name on the application profile."
+      - "The bill must be a recent one (not older than the accepted recency window for address proof)."
+      - "The bill is accepted as address proof only when the service address matches the application's communication address."
+
+  BANK_CHEQUE:
+    display_name: "Bank cheque"
+    identification: |
+      A cancelled bank cheque leaf. Recognisable by the bank name/logo,
+      IFSC code (11 characters: 4 letters + 0 + 6 alphanumerics, e.g.
+      HDFC0001234), account number, MICR band and the account holder's
+      printed name.
+    extract: bankcheque_extract
+    fields:
+      name:
+        label: "Account holder's printed name, exactly as shown"
+        compare_to: name
+      account_number:
+        label: "Account number as printed on the cheque"
+      ifsc:
+        label: "IFSC code (11 characters: 4 letters + 0 + 6 alphanumerics)"
+    rules:
+      - "The account holder's printed name must match the applicant's name on the application profile."
+      - "The cheque proves bank account ownership; it does not prove age or income."
+
+  SALARY_SLIP:
+    display_name: "Salary slip"
+    identification: |
+      A salary slip / pay slip issued by an employer. Recognisable by the
+      employer letterhead, employee name and id, designation, pay period
+      (month/year), earnings and deductions tables and net pay.
+    extract: salaryslip_extract
+    fields:
+      name:
+        label: "Employee name, exactly as printed"
+        compare_to: name
+      pan:
+        label: "The employee's PAN, if printed on the slip"
+        compare_to: pan
+      dob:
+        label: "Employee date of birth, if printed on the slip"
+        compare_to: dob
+      mobile:
+        label: "Employee mobile number, if printed on the slip"
+        compare_to: mobile
+      email:
+        label: "Employee email address, if printed on the slip"
+        compare_to: email
+      net_pay:
+        label: "Net pay amount for the period (as printed)"
+    rules:
+      - "The employee name must match the applicant's name on the application profile."
+      - "If the employer's PAN appears on the slip it is the EMPLOYER's PAN, not the applicant's - do not confuse them."
+      - "The pay period must fall within the accepted recency window for income proof."
+
+  MEDICAL_REPORT:
+    display_name: "Medical report"
+    identification: |
+      A medical examination report or diagnostic test report issued by a
+      hospital, clinic or diagnostic laboratory. Recognisable by the
+      provider letterhead, patient name, age/date of birth, test findings
+      and the examining doctor's details.
+    extract: medicalreport_extract
+    fields:
+      name:
+        label: "Patient name, exactly as printed"
+        compare_to: name
+      dob:
+        label: "Patient date of birth, if printed"
+        compare_to: dob
+    rules:
+      - "The patient name must match the applicant's name on the application profile."
+      - "The patient's date of birth must match the application profile."
