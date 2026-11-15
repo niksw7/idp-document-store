@@ -632,16 +632,21 @@ def fields_to_verify(
     application_details: dict[str, str],
     identified_type: str | None,
 ) -> list[str]:
-    """Caller-explicit > rules-file compare_to targets > application fields."""
+    """Caller-explicit > rules-file compare_to targets > application fields.
+
+    A KNOWN type is authoritative: an evidence-only type (fields but no
+    compare_to, e.g. a nominee's birth certificate) verifies NOTHING —
+    falling back to the expected fields would demand the applicant's
+    name on a document that belongs to someone else.
+    """
     if verify_fields:
         wanted = set(verify_fields)
         return [f for f in FIELD_IDS if f in wanted]
     if identified_type:
         rule = rules_for(identified_type)
-        if rule:
+        if rule is not None:
             typed = {spec["compare_to"] for spec in rule["fields"] if spec["compare_to"]}
-            if typed:
-                return [f for f in FIELD_IDS if f in typed]
+            return [f for f in FIELD_IDS if f in typed]
     return [f for f in FIELD_IDS if f in application_details]
 
 
