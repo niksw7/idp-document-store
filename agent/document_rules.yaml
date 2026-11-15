@@ -27,6 +27,33 @@
 
 document_types:
 
+  BIRTH_CERTIFICATE:
+    display_name: "Birth certificate"
+    identification: |
+      Birth certificate issued by a municipal corporation or the registrar
+      of births, deaths and marriages. Recognisable by a "Birth
+      Certificate" / "Government of India" / municipal-corporation
+      heading, the registered person's name, date of birth, place of
+      birth, parents' names and a registration number with a date of
+      registration or issue.
+    extract: birth_certificate_extract
+    fields:
+      child_name:
+        label: "Name of the person whose birth is registered, exactly as printed"
+      date_of_birth:
+        label: "Date of birth as printed (e.g. 14/03/1990)"
+      place_of_birth:
+        label: "Place of birth as printed"
+      mother_name:
+        label: "Mother's name as printed"
+      father_name:
+        label: "Father's name as printed"
+      registration_number:
+        label: "Registration or certificate number"
+    rules:
+      - "This certificate is age evidence for a person OTHER than the applicant (e.g. a nominee) - its fields are not expected to match the application profile."
+      - "The date of birth must be clearly printed and complete (day, month, year)."
+
   PAN:
     display_name: "PAN card"
     identification: |
