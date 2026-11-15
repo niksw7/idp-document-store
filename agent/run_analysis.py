@@ -39,7 +39,7 @@ REQUEST_TIMEOUT_SECONDS = 60
 #: by agentworks/scripts/build_claw_spec.py at release time
 PINNED_FILES: dict[str, str] = {
     "idp_analyze.py": "4469fe997eb371dc10e68c21b4eb47b3c70b45aeaaa76d29e847cd0b539c993a",
-    "document_rules.yaml": "f9918d3bf7a17d178d66ad96240f99eb32935f6614e0510138d44c47ad25ad9d",
+    "document_rules.yaml": "164b65227958ff5d927d4c85bae618283ee34b116b3121420891bb6a07417985",
 }
 
 #: runtime dependencies (installed only from the policy-allowed indexes)
